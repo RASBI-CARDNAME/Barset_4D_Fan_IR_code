@@ -1,7 +1,24 @@
-# Barset_4D_Fan_IR_code
-BLUE FEEL Barset 4D Fan`s ir remote control example
+# 프로젝트 개요 (Overview)
+리모컨의 ir 패킷을 로직 분석기로 캡처하고 stm32와 ir 블라스터를 통해 리모컨의 동작을 모방합니다.  
 
-# code
-This repository has code that mimics the behavior of the Barset 4D Fan`s remote control on the STM32F103C8T6.
+---
 
-Each signal pulse was measured with a logic analyzer. Please refer to the schematic for the connections.
+# 기술 스택 (Tech Stack)
+- HW: STM32F103C8T6
+- SW: C, Kicad
+- Tools: Logic Analyzer, J-link OB
+
+---
+
+# 프로젝트 구조
+
+```text
+Circuit Diagram
+├── STM32F103C8T6_IR.png (프로젝트 회로도)
+└── original_ir_remote_controller.png (리모컨 회로도)
+Sources
+├── My_remote_Control.ioc (STM32CUBEMX 파일)
+└── main.c (메인 코드)
+logic_analyzer
+└── 로직 분석기 캡처 파일 (logic2)
+```
