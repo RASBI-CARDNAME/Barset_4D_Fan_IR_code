@@ -3,14 +3,14 @@
 
 ---
 
-# 기술 스택 (Tech Stack)
+# 🔧기술 스택 (Tech Stack)
 - HW: STM32F103C8T6
 - SW: C, Kicad
 - Tools: Logic Analyzer, J-link OB
 
 ---
 
-# 프로젝트 구조
+# 📂프로젝트 구조
 
 ```text
 Circuit Diagram
