@@ -27,21 +27,16 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* 타이머 최대 카운트 값 (16비트 타이머 기준) */
+//상수 선
 #define MAX_TIMER_COUNTER 65535
+#define SYNC_TIME 7700
+#define TIME_CASE_1 500
+#define TIME_CASE_2 1000
+#define END_SYNC_TIME 900
 
-/* IR 프로토콜 타이밍 상수 정의 (단위: us) */
-#define SYNC_TIME 7700       // 초기 동기화 신호의 High 구간 길이
-#define TIME_CASE_1 500      // 짧은 펄스/지연 시간 (비트 0 또는 1의 구성 요소)
-#define TIME_CASE_2 1000     // 긴 펄스/지연 시간 (비트 0 또는 1의 구성 요소)
-#define END_SYNC_TIME 900    // 종료 신호 관련 시간 (현재 코드에선 직접 사용 안됨)
-
-/* IR 프로토콜의 시작 및 종료 코드 패턴 */
-const uint8_t start_code = 0xAA; // 2진수: 10101010
-const uint8_t end_code = 0xA;    // 2진수: 1010
-
-/* 전송할 IR 명령어 데이터 배열 (12비트 데이터로 추정) */
-const uint16_t function_ir [] = {0x209, 0x40E, 0x10B, 0x806};
+const uint8_t start_code = 0xAA; //시작 코드
+const uint8_t end_code = 0xA; //종료 코드
+const uint16_t function_ir [] = {0x209,0x40E,0x10B,0x806}; // 데이터 코드
 
 /* USER CODE END PD */
 
@@ -64,11 +59,10 @@ static void MX_GPIO_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-/* 사용자 정의 함수 원형 선언 */
-void delay_us(uint32_t us);             // 마이크로초 단위 딜레이
-void sync_signal();                     // 시작(Sync) 신호 전송
-void end_signal();                      // 종료(End) 신호 전송
-void output_a_signal(uint16_t logic);   // 전체 IR 패킷 전송
+void delay_us(uint32_t us); //타이머 기반 딜레이 함수
+void sync_signal();  // 싱크 신호 출력 함수
+void end_signal(); // 종료 신호 출력 함수
+void output_a_signal(uint16_t logic); // 데이터 신호 출력 함수
 
 /* USER CODE END PFP */
 
@@ -109,7 +103,6 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  /* 마이크로초 딜레이용 타이머(TIM2) 시작 */
   HAL_TIM_Base_Start(&htim2);
   /* USER CODE END 2 */
 
@@ -120,25 +113,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-      /* 버튼 입력 처리 (Active Low 방식: 버튼 누르면 GND 연결 -> 0 인식) */
-      
-      // PB3 버튼이 눌렸을 때 -> 첫 번째 IR 코드 전송
-	  if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_RESET) {
+	  //버튼 눌리면 각 버튼에 따른 신호 출력
+	  if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_RESET) { 
 		  output_a_signal(function_ir[0]);
-		  HAL_Delay(100); // 디바운싱 및 중복 전송 방지
-	  } 
-      // PB4 버튼이 눌렸을 때 -> 두 번째 IR 코드 전송
-      else if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4) == GPIO_PIN_RESET) {
+		  HAL_Delay(100);
+	  } else if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4) == GPIO_PIN_RESET) {
 		  output_a_signal(function_ir[1]);
 		  HAL_Delay(100);
-	  } 
-      // PB5 버튼이 눌렸을 때 -> 세 번째 IR 코드 전송
-      else if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5) == GPIO_PIN_RESET) {
+	  } else if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5) == GPIO_PIN_RESET) {
 		  output_a_signal(function_ir[2]);
 		  HAL_Delay(100);
-	  } 
-      // PB6 버튼이 눌렸을 때 -> 네 번째 IR 코드 전송
-      else if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) == GPIO_PIN_RESET) {
+	  } else if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) == GPIO_PIN_RESET) {
 		  output_a_signal(function_ir[3]);
 		  HAL_Delay(100);
 	  }
@@ -146,60 +131,232 @@ int main(void)
   /* USER CODE END 3 */
 }
 
-// ... (중간 HAL 생성 코드 생략) ...
-
-/* USER CODE BEGIN 4 */
-
 /**
-  * @brief  마이크로초(us) 단위로 대기하는 함수
-  * @param  us: 대기할 시간 (마이크로초)
-  * @note   TIM2 타이머의 카운터를 사용하여 정확한 시간을 측정함
+  * @brief System Clock Configuration
+  * @retval None
   */
-void delay_us(uint32_t us) {
-    // 타이머 최대값(16비트)을 초과하지 않도록 제한
-	if (us > MAX_TIMER_COUNTER) {
-		us = MAX_TIMER_COUNTER - 1;
-	}
-    // 타이머 카운터를 0으로 초기화
-	__HAL_TIM_SET_COUNTER(&htim2, 0);
-    // 카운터 값이 목표 시간(us)에 도달할 때까지 대기 (Blocking Delay)
-	while((uint32_t)__HAL_TIM_GET_COUNTER(&htim2) < us);
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /**
-  * @brief  IR 통신의 시작을 알리는 Sync 신호 전송 함수
-  * @note   긴 PWM 신호 후 start_code 패턴을 보냄
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
   */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 0;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 199;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 100;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
+  HAL_TIM_MspPostInit(&htim1);
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 7;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+
+  /* USER CODE END MX_GPIO_Init_1 */
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PC13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB3 PB4 PB5 PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+
+  /* USER CODE END MX_GPIO_Init_2 */
+}
+
+/* USER CODE BEGIN 4 */
+//딜레이 함수
+void delay_us(uint32_t us) {
+	if (us > MAX_TIMER_COUNTER) {
+		us = MAX_TIMER_COUNTER - 1;
+	}
+	__HAL_TIM_SET_COUNTER(&htim2,0);
+	while((uint32_t)__HAL_TIM_GET_COUNTER(&htim2)<us);
+}
+
+//싱크 신호 출력 함수
 void sync_signal() {
-    // 1. 리더 코드 (Leader Code): PWM 7.7ms 출력
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 	delay_us(SYNC_TIME);
 	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 
-    // 2. Start Code 패턴 전송 (4회 반복)
-    // 패턴: [Space(긴) -> PWM(짧은)] -> [Space(짧은) -> PWM(긴)]
 	for (int i = 0; i<4; i++) {
-        // 첫 번째 부분
-		delay_us(TIME_CASE_2);                      // 1000us 대기 (신호 없음)
-		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);   // PWM 시작
-		delay_us(TIME_CASE_1);                      // 500us 유지
-		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);    // PWM 정지
+		delay_us(TIME_CASE_2);
+		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+		delay_us(TIME_CASE_1);
+		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 
-        // 두 번째 부분
-		delay_us(TIME_CASE_1);                      // 500us 대기 (신호 없음)
-		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);   // PWM 시작
-		delay_us(TIME_CASE_2);                      // 1000us 유지
-		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);    // PWM 정지
+		delay_us(TIME_CASE_1);
+		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+		delay_us(TIME_CASE_2);
+		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 	}
 }
 
-/**
-  * @brief  IR 통신의 종료를 알리는 End 신호 전송 함수
-  * @note   end_code 패턴을 보냄 (2회 반복)
-  */
+//종료 신호 출력 함수
 void end_signal() {
 	for (int i = 0; i<2; i++) {
-        // sync_signal 내부 루프와 동일한 패턴을 2번 반복
 		delay_us(TIME_CASE_2);
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 		delay_us(TIME_CASE_1);
@@ -212,26 +369,57 @@ void end_signal() {
 	}
 }
 
-/**
-  * @brief  전체 IR 신호 패킷을 전송하는 함수
-  * @param  logic: 전송할 12비트 데이터
-  * @note   신뢰성을 위해 전체 패킷을 3회 반복 전송함
-  */
+// 데이터 신호 출력 함수. 비트를 1과 0으로 구분.
 void output_a_signal(uint16_t logic) {
-    // 전체 패킷을 3회 반복 전송
 	for (int k = 0; k < 3; k ++){
-		sync_signal(); // 1. 헤더(Sync) 전송
-
-        // 2. 12비트 데이터 전송 (MSB부터 LSB 순서로 추정, i=11 downto 0)
+		sync_signal();
 		for (int i = 11; i>=0; i--) {
-            // 해당 비트가 1인 경우
-			if ((logic >> i) & 0x01) {
-                // 비트 1 인코딩: 긴 Space(1000us) + 짧은 PWM(500us)
+			if ((logic >> i) & 0x01) { //비트가 1 일 때
 				delay_us(TIME_CASE_2);
 				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 				delay_us(TIME_CASE_1);
 				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
-			} 
-            // 해당 비트가 0인 경우
-            else {
-                // 비트 0 인코딩: 짧은 Space(500us) + 긴 PWM(1000us)
+			} else { //비트가 0일 때
+				delay_us(TIME_CASE_1);
+				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+				delay_us(TIME_CASE_2);
+				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+			}
+		}
+		end_signal();
+		delay_us(5200);
+	}
+}
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+#ifdef USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
